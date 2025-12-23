@@ -294,3 +294,25 @@ def health_check():
         "status": "healthy",
         "mode": os.getenv("MUSIC_GEN_MODE", "simulate")
     }
+
+
+def main():
+    """Main entrypoint for running the API server."""
+    import uvicorn
+    
+    # Read port from environment variable (for Cloud Run compatibility)
+    port = int(os.getenv("PORT", "8080"))
+    
+    logger.info(f"Starting Music Track Generator API on port {port}")
+    logger.info(f"Mode: {os.getenv('MUSIC_GEN_MODE', 'simulate')}")
+    
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=port,
+        log_level="info"
+    )
+
+
+if __name__ == "__main__":
+    main()
