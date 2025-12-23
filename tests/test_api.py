@@ -12,6 +12,36 @@ from music_generator.api import app
 client = TestClient(app)
 
 
+@pytest.fixture
+def reload_api_module():
+    """Fixture to reload API module with modified environment variables.
+    
+    This is a utility to help test environment-dependent behavior.
+    """
+    def _reload_with_env(**env_vars):
+        # Save current env
+        old_env = {}
+        for key in env_vars:
+            old_env[key] = os.environ.get(key)
+        
+        # Set new env
+        for key, value in env_vars.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        
+        # Reimport module
+        from importlib import reload
+        import music_generator.api as api_module
+        reload(api_module)
+        test_client = TestClient(api_module.app)
+        
+        return test_client, old_env
+    
+    return _reload_with_env
+
+
 def test_root():
     """Test root endpoint."""
     response = client.get("/")
@@ -203,20 +233,11 @@ def test_prompt_tips_filtered():
     assert data[0]["preset_name"] == "rock_anthem"
 
 
-def test_api_key_authentication():
+def test_api_key_authentication(reload_api_module):
     """Test API key authentication when configured."""
-    # Save current env
-    old_api_key = os.environ.get("MUSIC_GEN_API_KEY")
-    
     try:
-        # Set API key
-        os.environ["MUSIC_GEN_API_KEY"] = "test_secret_key"
-        
-        # Reimport to pick up new env var
-        from importlib import reload
-        import music_generator.api as api_module
-        reload(api_module)
-        test_client = TestClient(api_module.app)
+        # Set API key and reload
+        test_client, old_env = reload_api_module(MUSIC_GEN_API_KEY="test_secret_key")
         
         # Request without API key should fail
         response = test_client.get("/presets")
@@ -236,25 +257,18 @@ def test_api_key_authentication():
     
     finally:
         # Restore env
-        if old_api_key:
-            os.environ["MUSIC_GEN_API_KEY"] = old_api_key
-        else:
-            os.environ.pop("MUSIC_GEN_API_KEY", None)
+        for key, value in old_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
 
-def test_config_endpoint():
+def test_config_endpoint(reload_api_module):
     """Test /config endpoint returns safe configuration info."""
-    # Save and clear API key to test without auth
-    old_api_key = os.environ.get("MUSIC_GEN_API_KEY")
-    
     try:
-        os.environ.pop("MUSIC_GEN_API_KEY", None)
-        
-        # Reimport to pick up cleared env var
-        from importlib import reload
-        import music_generator.api as api_module
-        reload(api_module)
-        test_client = TestClient(api_module.app)
+        # Clear API key and reload
+        test_client, old_env = reload_api_module(MUSIC_GEN_API_KEY=None)
         
         response = test_client.get("/config")
         assert response.status_code == 200
@@ -280,30 +294,22 @@ def test_config_endpoint():
     
     finally:
         # Restore env
-        if old_api_key:
-            os.environ["MUSIC_GEN_API_KEY"] = old_api_key
-        else:
-            os.environ.pop("MUSIC_GEN_API_KEY", None)
+        for key, value in old_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
 
-def test_config_endpoint_gcp_mode():
+def test_config_endpoint_gcp_mode(reload_api_module):
     """Test /config endpoint in GCP mode."""
-    # Save current env
-    old_mode = os.environ.get("MUSIC_GEN_MODE")
-    old_project = os.environ.get("GOOGLE_CLOUD_PROJECT")
-    old_region = os.environ.get("GOOGLE_CLOUD_REGION")
-    
     try:
-        # Set GCP mode
-        os.environ["MUSIC_GEN_MODE"] = "gcp"
-        os.environ["GOOGLE_CLOUD_PROJECT"] = "test-project"
-        os.environ["GOOGLE_CLOUD_REGION"] = "us-west1"
-        
-        # Reimport to pick up new env vars
-        from importlib import reload
-        import music_generator.api as api_module
-        reload(api_module)
-        test_client = TestClient(api_module.app)
+        # Set GCP mode and reload
+        test_client, old_env = reload_api_module(
+            MUSIC_GEN_MODE="gcp",
+            GOOGLE_CLOUD_PROJECT="test-project",
+            GOOGLE_CLOUD_REGION="us-west1"
+        )
         
         response = test_client.get("/config")
         assert response.status_code == 200
@@ -315,18 +321,11 @@ def test_config_endpoint_gcp_mode():
     
     finally:
         # Restore env
-        if old_mode:
-            os.environ["MUSIC_GEN_MODE"] = old_mode
-        else:
-            os.environ.pop("MUSIC_GEN_MODE", None)
-        if old_project:
-            os.environ["GOOGLE_CLOUD_PROJECT"] = old_project
-        else:
-            os.environ.pop("GOOGLE_CLOUD_PROJECT", None)
-        if old_region:
-            os.environ["GOOGLE_CLOUD_REGION"] = old_region
-        else:
-            os.environ.pop("GOOGLE_CLOUD_REGION", None)
+        for key, value in old_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
 
 def test_generate_track_duration_error_structured():

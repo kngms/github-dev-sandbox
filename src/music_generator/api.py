@@ -3,6 +3,7 @@
 import os
 import sys
 from typing import Optional, List, Dict, Any
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Header, Depends, Query
 from pydantic import BaseModel, Field
 import logging
@@ -25,21 +26,12 @@ if hasattr(sys.stdout, 'reconfigure'):
 
 logger = logging.getLogger(__name__)
 
-# Initialize FastAPI app
-app = FastAPI(
-    title="Music Track Generator API",
-    description="Generate music tracks with configurable genres, structures, and styles",
-    version="0.1.0"
-)
-
-# Get API key from environment (optional)
-API_KEY = os.getenv("MUSIC_GEN_API_KEY")
-
 
 def print_startup_banner():
     """Print startup configuration banner."""
     mode = os.getenv("MUSIC_GEN_MODE", "simulate")
-    api_key_set = "yes" if API_KEY else "no"
+    api_key = os.getenv("MUSIC_GEN_API_KEY")
+    api_key_set = "yes" if api_key else "no"
     
     logger.info("=" * 60)
     logger.info("Music Track Generator API - Startup Configuration")
@@ -56,10 +48,25 @@ def print_startup_banner():
     logger.info("=" * 60)
 
 
-@app.on_event("startup")
-async def startup_event():
-    """Print startup configuration on app startup."""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for startup and shutdown events."""
+    # Startup
     print_startup_banner()
+    yield
+    # Shutdown (nothing to do for now)
+
+
+# Initialize FastAPI app
+app = FastAPI(
+    title="Music Track Generator API",
+    description="Generate music tracks with configurable genres, structures, and styles",
+    version="0.1.0",
+    lifespan=lifespan
+)
+
+# Get API key from environment (optional)
+API_KEY = os.getenv("MUSIC_GEN_API_KEY")
 
 
 # Request/Response Models
