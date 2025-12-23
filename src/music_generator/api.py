@@ -1,7 +1,9 @@
 """FastAPI server for music track generation."""
 
 import os
+import sys
 from typing import Optional, List, Dict, Any
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Header, Depends, Query
 from pydantic import BaseModel, Field
 import logging
@@ -10,15 +12,58 @@ from .models import TrackConfig, SongStructure, StyleReference, PresetConfig
 from .generator import MusicGenerator
 from .presets import PresetManager
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging with UTF-8 encoding
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+# Ensure UTF-8 encoding for stdout (Python 3.7+ compatibility)
+# reconfigure() is available in Python 3.7+ for text streams
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+
 logger = logging.getLogger(__name__)
+
+
+def print_startup_banner():
+    """Print startup configuration banner."""
+    mode = os.getenv("MUSIC_GEN_MODE", "simulate")
+    api_key = os.getenv("MUSIC_GEN_API_KEY")
+    api_key_set = "yes" if api_key else "no"
+    
+    logger.info("=" * 60)
+    logger.info("Music Track Generator API - Startup Configuration")
+    logger.info("=" * 60)
+    logger.info(f"MUSIC_GEN_MODE: {mode}")
+    logger.info(f"MUSIC_GEN_API_KEY set: {api_key_set}")
+    
+    if mode == "gcp":
+        project = os.getenv("GOOGLE_CLOUD_PROJECT", "(not set)")
+        region = os.getenv("GOOGLE_CLOUD_REGION", "us-central1")
+        logger.info(f"GOOGLE_CLOUD_PROJECT: {project}")
+        logger.info(f"GOOGLE_CLOUD_REGION: {region}")
+    
+    logger.info("=" * 60)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for startup and shutdown events."""
+    # Startup
+    print_startup_banner()
+    yield
+    # Shutdown (nothing to do for now)
+
 
 # Initialize FastAPI app
 app = FastAPI(
     title="Music Track Generator API",
     description="Generate music tracks with configurable genres, structures, and styles",
-    version="0.1.0"
+    version="0.1.0",
+    lifespan=lifespan
 )
 
 # Get API key from environment (optional)
@@ -60,6 +105,15 @@ class PromptTip(BaseModel):
     preset_name: str
     genre: str
     tips: Optional[str]
+
+
+class ConfigResponse(BaseModel):
+    """API configuration response."""
+    mode: str
+    region: Optional[str]
+    project: Optional[str]
+    presets_available: List[str]
+    auth_enabled: bool
 
 
 # API Key Authentication
@@ -113,6 +167,26 @@ def root():
         "docs": "/docs",
         "mode": os.getenv("MUSIC_GEN_MODE", "simulate")
     }
+
+
+@app.get("/config", response_model=ConfigResponse)
+def get_config():
+    """Get API configuration information (safe, no secrets)."""
+    mode = os.getenv("MUSIC_GEN_MODE", "simulate")
+    region = os.getenv("GOOGLE_CLOUD_REGION", "us-central1") if mode == "gcp" else None
+    project = os.getenv("GOOGLE_CLOUD_PROJECT") if mode == "gcp" else None
+    auth_enabled = bool(API_KEY)
+    
+    # Get list of available presets
+    preset_names = preset_manager.list_presets()
+    
+    return ConfigResponse(
+        mode=mode,
+        region=region,
+        project=project,
+        presets_available=preset_names,
+        auth_enabled=auth_enabled
+    )
 
 
 @app.post("/tracks/generate", response_model=GenerateTrackResponse, dependencies=[Depends(verify_api_key)])

@@ -12,6 +12,49 @@ from music_generator.api import app
 client = TestClient(app)
 
 
+@pytest.fixture
+def reload_api_module():
+    """Fixture to reload API module with modified environment variables.
+    
+    This is a utility to help test environment-dependent behavior.
+    
+    Returns:
+        A function that takes environment variable key-value pairs and returns
+        (test_client, old_env_dict) tuple.
+    """
+    def _reload_with_env(**env_vars):
+        # Save current env
+        old_env = {}
+        for key in env_vars:
+            old_env[key] = os.environ.get(key)
+        
+        # Set new env
+        for key, value in env_vars.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        
+        # Reimport module
+        from importlib import reload
+        import music_generator.api as api_module
+        reload(api_module)
+        test_client = TestClient(api_module.app)
+        
+        return test_client, old_env
+    
+    return _reload_with_env
+
+
+def restore_env(old_env):
+    """Helper to restore environment variables."""
+    for key, value in old_env.items():
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
+
+
 def test_root():
     """Test root endpoint."""
     response = client.get("/")
@@ -203,21 +246,11 @@ def test_prompt_tips_filtered():
     assert data[0]["preset_name"] == "rock_anthem"
 
 
-def test_api_key_authentication():
+def test_api_key_authentication(reload_api_module):
     """Test API key authentication when configured."""
-    # Save current env
-    old_api_key = os.environ.get("MUSIC_GEN_API_KEY")
+    test_client, old_env = reload_api_module(MUSIC_GEN_API_KEY="test_secret_key")
     
     try:
-        # Set API key
-        os.environ["MUSIC_GEN_API_KEY"] = "test_secret_key"
-        
-        # Reimport to pick up new env var
-        from importlib import reload
-        import music_generator.api as api_module
-        reload(api_module)
-        test_client = TestClient(api_module.app)
-        
         # Request without API key should fail
         response = test_client.get("/presets")
         assert response.status_code == 401
@@ -233,10 +266,85 @@ def test_api_key_authentication():
         # Request with wrong API key
         response = test_client.get("/presets", headers={"X-API-Key": "wrong_key"})
         assert response.status_code == 401
-    
     finally:
-        # Restore env
-        if old_api_key:
-            os.environ["MUSIC_GEN_API_KEY"] = old_api_key
-        else:
-            os.environ.pop("MUSIC_GEN_API_KEY", None)
+        restore_env(old_env)
+
+
+def test_config_endpoint(reload_api_module):
+    """Test /config endpoint returns safe configuration info."""
+    test_client, old_env = reload_api_module(MUSIC_GEN_API_KEY=None)
+    
+    try:
+        response = test_client.get("/config")
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Check required keys
+        assert "mode" in data
+        assert "region" in data
+        assert "project" in data
+        assert "presets_available" in data
+        assert "auth_enabled" in data
+        
+        # Check values
+        assert data["mode"] == "simulate"
+        assert isinstance(data["presets_available"], list)
+        assert len(data["presets_available"]) > 0
+        assert data["auth_enabled"] is False
+        
+        # Verify no secrets are exposed
+        assert "api_key" not in data
+        assert "credentials" not in data
+        assert "MUSIC_GEN_API_KEY" not in str(data)
+    finally:
+        restore_env(old_env)
+
+
+def test_config_endpoint_gcp_mode(reload_api_module):
+    """Test /config endpoint in GCP mode."""
+    test_client, old_env = reload_api_module(
+        MUSIC_GEN_MODE="gcp",
+        GOOGLE_CLOUD_PROJECT="test-project",
+        GOOGLE_CLOUD_REGION="us-west1"
+    )
+    
+    try:
+        response = test_client.get("/config")
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert data["mode"] == "gcp"
+        assert data["region"] == "us-west1"
+        assert data["project"] == "test-project"
+    finally:
+        restore_env(old_env)
+
+
+def test_generate_track_duration_error_structured():
+    """Test that duration validation returns structured error."""
+    response = client.post("/tracks/generate", json={
+        "text_input": "Test lyrics",
+        "genre": "rock",
+        "duration_seconds": 300,  # Too long (>240)
+        "structure": {
+            "intro": True,
+            "verse_count": 2,
+            "chorus_count": 2,
+            "bridge": True,
+            "outro": True
+        }
+    })
+    assert response.status_code == 422
+    data = response.json()
+    
+    # Pydantic returns a structured error with field location and details
+    detail = data.get("detail")
+    assert isinstance(detail, list)
+    assert len(detail) > 0
+    
+    # Check the error has field information
+    error = detail[0]
+    assert "loc" in error
+    assert "duration_seconds" in error["loc"]
+    assert "msg" in error
+
