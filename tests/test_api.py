@@ -17,6 +17,10 @@ def reload_api_module():
     """Fixture to reload API module with modified environment variables.
     
     This is a utility to help test environment-dependent behavior.
+    
+    Returns:
+        A function that takes environment variable key-value pairs and returns
+        (test_client, old_env_dict) tuple.
     """
     def _reload_with_env(**env_vars):
         # Save current env
@@ -40,6 +44,15 @@ def reload_api_module():
         return test_client, old_env
     
     return _reload_with_env
+
+
+def restore_env(old_env):
+    """Helper to restore environment variables."""
+    for key, value in old_env.items():
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
 
 
 def test_root():
@@ -235,10 +248,9 @@ def test_prompt_tips_filtered():
 
 def test_api_key_authentication(reload_api_module):
     """Test API key authentication when configured."""
+    test_client, old_env = reload_api_module(MUSIC_GEN_API_KEY="test_secret_key")
+    
     try:
-        # Set API key and reload
-        test_client, old_env = reload_api_module(MUSIC_GEN_API_KEY="test_secret_key")
-        
         # Request without API key should fail
         response = test_client.get("/presets")
         assert response.status_code == 401
@@ -254,22 +266,15 @@ def test_api_key_authentication(reload_api_module):
         # Request with wrong API key
         response = test_client.get("/presets", headers={"X-API-Key": "wrong_key"})
         assert response.status_code == 401
-    
     finally:
-        # Restore env
-        for key, value in old_env.items():
-            if value is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = value
+        restore_env(old_env)
 
 
 def test_config_endpoint(reload_api_module):
     """Test /config endpoint returns safe configuration info."""
+    test_client, old_env = reload_api_module(MUSIC_GEN_API_KEY=None)
+    
     try:
-        # Clear API key and reload
-        test_client, old_env = reload_api_module(MUSIC_GEN_API_KEY=None)
-        
         response = test_client.get("/config")
         assert response.status_code == 200
         data = response.json()
@@ -291,26 +296,19 @@ def test_config_endpoint(reload_api_module):
         assert "api_key" not in data
         assert "credentials" not in data
         assert "MUSIC_GEN_API_KEY" not in str(data)
-    
     finally:
-        # Restore env
-        for key, value in old_env.items():
-            if value is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = value
+        restore_env(old_env)
 
 
 def test_config_endpoint_gcp_mode(reload_api_module):
     """Test /config endpoint in GCP mode."""
+    test_client, old_env = reload_api_module(
+        MUSIC_GEN_MODE="gcp",
+        GOOGLE_CLOUD_PROJECT="test-project",
+        GOOGLE_CLOUD_REGION="us-west1"
+    )
+    
     try:
-        # Set GCP mode and reload
-        test_client, old_env = reload_api_module(
-            MUSIC_GEN_MODE="gcp",
-            GOOGLE_CLOUD_PROJECT="test-project",
-            GOOGLE_CLOUD_REGION="us-west1"
-        )
-        
         response = test_client.get("/config")
         assert response.status_code == 200
         data = response.json()
@@ -318,14 +316,8 @@ def test_config_endpoint_gcp_mode(reload_api_module):
         assert data["mode"] == "gcp"
         assert data["region"] == "us-west1"
         assert data["project"] == "test-project"
-    
     finally:
-        # Restore env
-        for key, value in old_env.items():
-            if value is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = value
+        restore_env(old_env)
 
 
 def test_generate_track_duration_error_structured():
