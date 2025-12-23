@@ -21,7 +21,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize shared components
+# Initialize shared components (before lifespan to ensure availability)
 preset_manager = PresetManager()
 
 
@@ -157,7 +157,7 @@ def verify_api_key(
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request, exc: RequestValidationError):
+async def validation_exception_handler(_request, exc: RequestValidationError):
     """Custom handler for validation errors to return structured responses."""
     errors = []
     for error in exc.errors():
