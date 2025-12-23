@@ -240,3 +240,120 @@ def test_api_key_authentication():
             os.environ["MUSIC_GEN_API_KEY"] = old_api_key
         else:
             os.environ.pop("MUSIC_GEN_API_KEY", None)
+
+
+def test_config_endpoint():
+    """Test /config endpoint returns safe configuration info."""
+    # Save and clear API key to test without auth
+    old_api_key = os.environ.get("MUSIC_GEN_API_KEY")
+    
+    try:
+        os.environ.pop("MUSIC_GEN_API_KEY", None)
+        
+        # Reimport to pick up cleared env var
+        from importlib import reload
+        import music_generator.api as api_module
+        reload(api_module)
+        test_client = TestClient(api_module.app)
+        
+        response = test_client.get("/config")
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Check required keys
+        assert "mode" in data
+        assert "region" in data
+        assert "project" in data
+        assert "presets_available" in data
+        assert "auth_enabled" in data
+        
+        # Check values
+        assert data["mode"] == "simulate"
+        assert isinstance(data["presets_available"], list)
+        assert len(data["presets_available"]) > 0
+        assert data["auth_enabled"] is False
+        
+        # Verify no secrets are exposed
+        assert "api_key" not in data
+        assert "credentials" not in data
+        assert "MUSIC_GEN_API_KEY" not in str(data)
+    
+    finally:
+        # Restore env
+        if old_api_key:
+            os.environ["MUSIC_GEN_API_KEY"] = old_api_key
+        else:
+            os.environ.pop("MUSIC_GEN_API_KEY", None)
+
+
+def test_config_endpoint_gcp_mode():
+    """Test /config endpoint in GCP mode."""
+    # Save current env
+    old_mode = os.environ.get("MUSIC_GEN_MODE")
+    old_project = os.environ.get("GOOGLE_CLOUD_PROJECT")
+    old_region = os.environ.get("GOOGLE_CLOUD_REGION")
+    
+    try:
+        # Set GCP mode
+        os.environ["MUSIC_GEN_MODE"] = "gcp"
+        os.environ["GOOGLE_CLOUD_PROJECT"] = "test-project"
+        os.environ["GOOGLE_CLOUD_REGION"] = "us-west1"
+        
+        # Reimport to pick up new env vars
+        from importlib import reload
+        import music_generator.api as api_module
+        reload(api_module)
+        test_client = TestClient(api_module.app)
+        
+        response = test_client.get("/config")
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert data["mode"] == "gcp"
+        assert data["region"] == "us-west1"
+        assert data["project"] == "test-project"
+    
+    finally:
+        # Restore env
+        if old_mode:
+            os.environ["MUSIC_GEN_MODE"] = old_mode
+        else:
+            os.environ.pop("MUSIC_GEN_MODE", None)
+        if old_project:
+            os.environ["GOOGLE_CLOUD_PROJECT"] = old_project
+        else:
+            os.environ.pop("GOOGLE_CLOUD_PROJECT", None)
+        if old_region:
+            os.environ["GOOGLE_CLOUD_REGION"] = old_region
+        else:
+            os.environ.pop("GOOGLE_CLOUD_REGION", None)
+
+
+def test_generate_track_duration_error_structured():
+    """Test that duration validation returns structured error."""
+    response = client.post("/tracks/generate", json={
+        "text_input": "Test lyrics",
+        "genre": "rock",
+        "duration_seconds": 300,  # Too long (>240)
+        "structure": {
+            "intro": True,
+            "verse_count": 2,
+            "chorus_count": 2,
+            "bridge": True,
+            "outro": True
+        }
+    })
+    assert response.status_code == 422
+    data = response.json()
+    
+    # Pydantic returns a structured error with field location and details
+    detail = data.get("detail")
+    assert isinstance(detail, list)
+    assert len(detail) > 0
+    
+    # Check the error has field information
+    error = detail[0]
+    assert "loc" in error
+    assert "duration_seconds" in error["loc"]
+    assert "msg" in error
+

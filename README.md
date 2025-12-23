@@ -35,13 +35,22 @@ Music track generation system with CLI and REST API. Generate music tracks with 
 - Python 3.9 or higher
 - (Optional) Google Cloud Platform account for GCP mode
 
-### Quick Install
+### Quick Install with Makefile
 
 ```bash
 # Clone the repository
 git clone https://github.com/kngms/github-dev-sandbox.git
 cd github-dev-sandbox
 
+# Create virtual environment and install
+make venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+make install
+```
+
+### Manual Install
+
+```bash
 # Install dependencies
 pip install -r requirements.txt
 
@@ -63,24 +72,90 @@ pip install -e .
 
 ## Quick Start
 
-### CLI Usage (No Credentials Needed)
+### Makefile Commands
+
+```bash
+# Show all available commands
+make help
+
+# Install dependencies
+make install
+
+# Run tests
+make test
+
+# Start API server
+make api
+
+# Show CLI help
+make cli-help
+```
+
+### CLI Usage (No Credentials Needed - Simulate Mode)
 
 ```bash
 # List available presets
 music-gen list-presets
+
+# Expected output:
+# ┏━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃ Name                  ┃ Genre      ┃ Description                            ┃
+# ┣━━━━━━━━━━━━━━━━━━━━━━━╋━━━━━━━━━━━━╋━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+# ┃ classical_orchestral  ┃ classical  ┃ Classical orchestral composition       ┃
+# ┃ electronic_dance      ┃ electronic ┃ Upbeat electronic dance music          ┃
+# ┃ jazz_smooth           ┃ jazz       ┃ Smooth jazz with relaxed tempo         ┃
+# ┃ pop_catchy            ┃ pop        ┃ Catchy pop song with radio-friendly... ┃
+# ┃ rock_anthem           ┃ rock       ┃ High-energy rock anthem with powerful...┃
+# ┗━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
 # Generate a track (simulate mode by default)
 music-gen generate \
   --text "Walking down the street, feeling the beat..." \
   --genre rock \
   --preset rock_anthem
+
+# Expected output:
+# Using preset: rock_anthem
+# 
+# Track Configuration:
+# Mode: simulate
+# Genre: rock
+# Duration: 180s (3m 0s)
+# Temperature: 0.8
+# 
+# Text Input:
+# ╭────────────────────────────────────────────────────────────╮
+# │ Walking down the street, feeling the beat...              │
+# ╰────────────────────────────────────────────────────────────╯
+# 
+# Estimated cost: $0.0280 USD
+# Proceed with generation? [Y/n]: y
+# 
+# ✓ Track generation completed!
+# Status: simulated
+# 
+# Track generation simulated (no GCP credentials required).
 ```
 
 ### API Server
 
 ```bash
 # Start the API server (binds to 0.0.0.0:8080 by default)
+make api
+# or
 uvicorn music_generator.api:app --host 0.0.0.0 --port 8080
+
+# Expected startup logs:
+# INFO:     Started server process
+# INFO:     Waiting for application startup.
+# ============================================================
+# Music Track Generator API - Startup Configuration
+# ============================================================
+# MUSIC_GEN_MODE: simulate
+# MUSIC_GEN_API_KEY set: no
+# ============================================================
+# INFO:     Application startup complete.
+# INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
 
 # Or set custom port
 PORT=3000 uvicorn music_generator.api:app --host 0.0.0.0 --port 3000
@@ -185,6 +260,27 @@ uvicorn music_generator.api:app --host 0.0.0.0 --port 8080
 
 ### API Endpoints
 
+#### Get Configuration
+```bash
+# GET /config - Returns safe configuration info (no secrets)
+curl http://localhost:8080/config
+
+# Response example:
+# {
+#   "mode": "simulate",
+#   "region": null,
+#   "project": null,
+#   "presets_available": [
+#     "classical_orchestral",
+#     "electronic_dance",
+#     "jazz_smooth",
+#     "pop_catchy",
+#     "rock_anthem"
+#   ],
+#   "auth_enabled": false
+# }
+```
+
 #### Generate Track
 ```bash
 # POST /tracks/generate
@@ -196,6 +292,17 @@ curl -X POST http://localhost:8080/tracks/generate \
     "duration_seconds": 180,
     "preset_name": "rock_anthem"
   }'
+
+# Response example:
+# {
+#   "status": "simulated",
+#   "mode": "simulate",
+#   "genre": "rock",
+#   "duration_seconds": 180,
+#   "prompt": "Generate a rock music track with the following specifications...",
+#   "metadata": {...},
+#   "message": "Track generation simulated (no GCP credentials required)."
+# }
 
 # With custom structure (no preset)
 curl -X POST http://localhost:8080/tracks/generate \
