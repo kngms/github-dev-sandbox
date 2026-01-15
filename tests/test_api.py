@@ -348,3 +348,44 @@ def test_generate_track_duration_error_structured():
     assert "duration_seconds" in error["loc"]
     assert "msg" in error
 
+
+def test_restore_env_helper():
+    """Test that restore_env helper properly restores environment variables."""
+    # Save original state
+    original_test_var = os.environ.get("TEST_ENV_VAR")
+    original_test_var_2 = os.environ.get("TEST_ENV_VAR_2")
+    
+    try:
+        # Set test environment variables
+        os.environ["TEST_ENV_VAR"] = "original_value"
+        os.environ["TEST_ENV_VAR_2"] = "another_value"
+        
+        # Create old_env dict that simulates what would be saved
+        old_env = {
+            "TEST_ENV_VAR": "restored_value",
+            "TEST_ENV_VAR_2": None,  # This should be removed
+            "TEST_ENV_VAR_3": "new_value"  # This should be added
+        }
+        
+        # Apply restore
+        restore_env(old_env)
+        
+        # Verify restoration worked correctly
+        assert os.environ.get("TEST_ENV_VAR") == "restored_value"
+        assert "TEST_ENV_VAR_2" not in os.environ
+        assert os.environ.get("TEST_ENV_VAR_3") == "new_value"
+        
+    finally:
+        # Clean up test variables
+        if original_test_var is not None:
+            os.environ["TEST_ENV_VAR"] = original_test_var
+        else:
+            os.environ.pop("TEST_ENV_VAR", None)
+        
+        if original_test_var_2 is not None:
+            os.environ["TEST_ENV_VAR_2"] = original_test_var_2
+        else:
+            os.environ.pop("TEST_ENV_VAR_2", None)
+        
+        os.environ.pop("TEST_ENV_VAR_3", None)
+

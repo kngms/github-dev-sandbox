@@ -12,6 +12,9 @@ from .models import TrackConfig, SongStructure, StyleReference, PresetConfig
 from .generator import MusicGenerator
 from .presets import PresetManager
 
+# Constants
+DEFAULT_GCP_REGION = "us-central1"
+
 # Configure logging with UTF-8 encoding
 logging.basicConfig(
     level=logging.INFO,
@@ -42,7 +45,7 @@ def print_startup_banner():
     
     if mode == "gcp":
         project = os.getenv("GOOGLE_CLOUD_PROJECT", "(not set)")
-        region = os.getenv("GOOGLE_CLOUD_REGION", "us-central1")
+        region = os.getenv("GOOGLE_CLOUD_REGION", DEFAULT_GCP_REGION)
         logger.info(f"GOOGLE_CLOUD_PROJECT: {project}")
         logger.info(f"GOOGLE_CLOUD_REGION: {region}")
     
@@ -147,7 +150,7 @@ def get_generator() -> MusicGenerator:
     """Get music generator instance based on mode."""
     mode = os.getenv("MUSIC_GEN_MODE", "simulate")
     project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
-    location = os.getenv("GOOGLE_CLOUD_REGION", "us-central1")
+    location = os.getenv("GOOGLE_CLOUD_REGION", DEFAULT_GCP_REGION)
     
     return MusicGenerator(
         mode=mode,
@@ -169,11 +172,11 @@ def root():
     }
 
 
-@app.get("/config", response_model=ConfigResponse)
+@app.get("/config", response_model=ConfigResponse, dependencies=[Depends(verify_api_key)])
 def get_config():
     """Get API configuration information (safe, no secrets)."""
     mode = os.getenv("MUSIC_GEN_MODE", "simulate")
-    region = os.getenv("GOOGLE_CLOUD_REGION", "us-central1") if mode == "gcp" else None
+    region = os.getenv("GOOGLE_CLOUD_REGION", DEFAULT_GCP_REGION) if mode == "gcp" else None
     project = os.getenv("GOOGLE_CLOUD_PROJECT") if mode == "gcp" else None
     auth_enabled = bool(API_KEY)
     

@@ -57,9 +57,7 @@ cli-help:
 # Clean up cache and artifacts (preserves venv)
 clean:
 	@echo "Cleaning cache and build artifacts..."
-	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-	find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
-	find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
+	find . -type d \( -name "__pycache__" -o -name "*.egg-info" -o -name ".pytest_cache" \) -prune -exec rm -rf {} + 2>/dev/null || true
 	@echo "Clean complete!"
 
 # Clean up everything including virtual environment
