@@ -111,28 +111,35 @@ class MusicGenerator:
         
         structure_str = " -> ".join(structure_parts)
         
-        # Build style references
-        style_str = ""
+        # Build style references using list for efficiency
+        style_lines = []
         if config.style_references:
-            refs = []
+            style_lines.append("\nStyle references:")
             for ref in config.style_references:
-                refs.append(f"{ref.type}: {ref.value}")
-            style_str = "\nStyle references:\n" + "\n".join(f"- {r}" for r in refs)
+                style_lines.append(f"- {ref.type}: {ref.value}")
         
-        prompt = f"""Generate a {config.genre} music track with the following specifications:
-
-Duration: {config.duration_seconds} seconds ({config.duration_seconds // 60} minutes {config.duration_seconds % 60} seconds)
-
-Song structure: {structure_str}
-
-Lyrics/Text input:
-{config.text_input}
-{style_str}
-
-Create a track that follows this structure and incorporates the provided text and style references.
-Temperature: {config.temperature}
-"""
-        return prompt
+        # Use list and join for efficient string building
+        prompt_parts = [
+            f"Generate a {config.genre} music track with the following specifications:",
+            "",
+            f"Duration: {config.duration_seconds} seconds ({config.duration_seconds // 60} minutes {config.duration_seconds % 60} seconds)",
+            "",
+            f"Song structure: {structure_str}",
+            "",
+            "Lyrics/Text input:",
+            config.text_input
+        ]
+        
+        if style_lines:
+            prompt_parts.extend(style_lines)
+        
+        prompt_parts.extend([
+            "",
+            "Create a track that follows this structure and incorporates the provided text and style references.",
+            f"Temperature: {config.temperature}"
+        ])
+        
+        return "\n".join(prompt_parts)
     
     def generate_track(
         self,

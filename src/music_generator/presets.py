@@ -22,16 +22,21 @@ class PresetManager:
         self.presets_dir = Path(presets_dir)
         self.presets_dir.mkdir(parents=True, exist_ok=True)
         
-        # Load built-in presets
+        # Cache for preset metadata to avoid repeated file I/O
+        self._metadata_cache: dict[str, dict] = {}
+        
+        # Load built-in presets (lazy initialization)
         self._ensure_builtin_presets()
     
     def _ensure_builtin_presets(self):
-        """Create built-in presets if they don't exist."""
+        """Create built-in presets if they don't exist (optimized to check only once per preset)."""
+        # Check if any preset files exist
+        existing_presets = set(p.stem for p in self.presets_dir.glob("*.yaml"))
         builtin_presets = self._get_builtin_presets()
         
+        # Only save presets that don't exist yet
         for preset in builtin_presets:
-            preset_path = self.presets_dir / f"{preset.name}.yaml"
-            if not preset_path.exists():
+            if preset.name not in existing_presets:
                 self.save_preset(preset)
     
     def _get_builtin_presets(self) -> List[PresetConfig]:
@@ -145,6 +150,9 @@ class PresetManager:
         with open(preset_path, 'w') as f:
             yaml.dump(preset.model_dump(), f, default_flow_style=False, sort_keys=False)
         
+        # Invalidate cache for this preset
+        self._metadata_cache.pop(preset.name, None)
+        
         return preset_path
     
     def load_preset(self, name: str) -> Optional[PresetConfig]:
@@ -180,6 +188,30 @@ class PresetManager:
             presets.append(preset_file.stem)
         return sorted(presets)
     
+    def list_presets_with_metadata(self) -> List[dict]:
+        """List all available presets with metadata (optimized for API).
+        
+        Returns:
+            List of preset metadata dictionaries with name, genre, and description
+        """
+        presets = []
+        for name in self.list_presets():
+            # Check cache first
+            if name in self._metadata_cache:
+                presets.append(self._metadata_cache[name])
+            else:
+                # Load only metadata fields from file
+                preset = self.load_preset(name)
+                if preset:
+                    metadata = {
+                        "name": preset.name,
+                        "genre": preset.genre,
+                        "description": preset.description
+                    }
+                    self._metadata_cache[name] = metadata
+                    presets.append(metadata)
+        return presets
+    
     def delete_preset(self, name: str) -> bool:
         """Delete a preset.
         
@@ -195,4 +227,6 @@ class PresetManager:
             return False
         
         preset_path.unlink()
+        # Invalidate cache for this preset
+        self._metadata_cache.pop(name, None)
         return True

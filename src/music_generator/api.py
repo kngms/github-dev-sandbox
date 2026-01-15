@@ -23,6 +23,8 @@ logger = logging.getLogger(__name__)
 
 # Initialize shared components (before lifespan to ensure availability)
 preset_manager = PresetManager()
+# Cache for generator instances by mode
+_generator_cache: Dict[str, MusicGenerator] = {}
 
 
 @asynccontextmanager
@@ -58,7 +60,8 @@ async def lifespan(app: FastAPI):
     
     yield
     
-    # Shutdown (if needed)
+    # Shutdown - clear generator cache
+    _generator_cache.clear()
     logger.info("Shutting down...")
 
 
@@ -181,16 +184,27 @@ async def validation_exception_handler(_request, exc: RequestValidationError):
 
 
 def get_generator() -> MusicGenerator:
-    """Get music generator instance based on mode."""
+    """Get music generator instance based on mode (cached for performance)."""
     mode = os.getenv("MUSIC_GEN_MODE", "simulate")
     project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
     location = os.getenv("GOOGLE_CLOUD_REGION", "us-central1")
     
-    return MusicGenerator(
+    # Create cache key based on configuration
+    cache_key = f"{mode}:{project_id}:{location}"
+    
+    # Return cached generator if available
+    if cache_key in _generator_cache:
+        return _generator_cache[cache_key]
+    
+    # Create and cache new generator
+    generator = MusicGenerator(
         mode=mode,
         project_id=project_id,
         location=location
     )
+    _generator_cache[cache_key] = generator
+    
+    return generator
 
 
 # Endpoints
@@ -268,18 +282,8 @@ def generate_track(request: GenerateTrackRequest):
 def list_presets():
     """List all available presets."""
     try:
-        preset_names = preset_manager.list_presets()
-        presets = []
-        
-        for name in preset_names:
-            preset = preset_manager.load_preset(name)
-            if preset:
-                presets.append(PresetListItem(
-                    name=preset.name,
-                    genre=preset.genre,
-                    description=preset.description
-                ))
-        
+        # Get preset metadata efficiently without loading full configs
+        presets = preset_manager.list_presets_with_metadata()
         return presets
     
     except Exception as e:
