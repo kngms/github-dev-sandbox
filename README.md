@@ -97,7 +97,7 @@ make cli-help
 # List available presets
 music-gen list-presets
 
-# Expected output:
+# Example output (order may vary):
 # ┏━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃ Name                  ┃ Genre      ┃ Description                            ┃
 # ┣━━━━━━━━━━━━━━━━━━━━━━━╋━━━━━━━━━━━━╋━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫

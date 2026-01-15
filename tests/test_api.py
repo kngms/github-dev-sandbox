@@ -36,8 +36,8 @@ def reload_api_module():
                 os.environ[key] = value
         
         # Reimport module
-        from importlib import reload
-        import music_generator.api as api_module
+        from importlib import import_module, reload
+        api_module = import_module("music_generator.api")
         reload(api_module)
         test_client = TestClient(api_module.app)
         
@@ -272,7 +272,7 @@ def test_api_key_authentication(reload_api_module):
 
 def test_config_endpoint(reload_api_module):
     """Test /config endpoint returns safe configuration info."""
-    test_client, old_env = reload_api_module(MUSIC_GEN_API_KEY=None)
+    test_client, old_env = reload_api_module()
     
     try:
         response = test_client.get("/config")

@@ -1,4 +1,4 @@
-.PHONY: help venv install test api cli-help clean
+.PHONY: help venv install test api cli-help clean clean-all
 
 # Default target
 help:
@@ -9,7 +9,8 @@ help:
 	@echo "  make test       - Run tests with pytest"
 	@echo "  make api        - Start the API server"
 	@echo "  make cli-help   - Show CLI help"
-	@echo "  make clean      - Remove virtual environment and cache files"
+	@echo "  make clean      - Remove cache and build artifacts (preserves venv)"
+	@echo "  make clean-all  - Remove everything including virtual environment"
 	@echo ""
 
 # Create virtual environment
@@ -48,9 +49,17 @@ cli-help:
 	@echo ""
 	music-gen generate --help
 
-# Clean up
+# Clean up cache and artifacts (preserves venv)
 clean:
-	@echo "Cleaning up..."
+	@echo "Cleaning cache and build artifacts..."
+	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
+	find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
+	@echo "Clean complete!"
+
+# Clean up everything including virtual environment
+clean-all:
+	@echo "Cleaning everything including venv..."
 	rm -rf venv
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true

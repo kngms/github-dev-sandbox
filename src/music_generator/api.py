@@ -20,8 +20,8 @@ logging.basicConfig(
         logging.StreamHandler(sys.stdout)
     ]
 )
-# Ensure UTF-8 encoding for stdout (Python 3.7+ compatibility)
-# reconfigure() is available in Python 3.7+ for text streams
+# Ensure UTF-8 encoding for stdout in supported Python 3.9+ runtimes
+# reconfigure() is available on text streams in these Python versions
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
