@@ -15,9 +15,14 @@ help:
 
 # Create virtual environment
 venv:
-	@echo "Creating virtual environment..."
-	python -m venv venv
-	@echo "Virtual environment created. Activate with:"
+	@if [ -d venv ]; then \
+		echo "Virtual environment 'venv' already exists. Skipping creation."; \
+	else \
+		echo "Creating virtual environment..."; \
+		python -m venv venv; \
+		echo "Virtual environment created."; \
+	fi
+	@echo "Activate the virtual environment with:"
 	@echo "  source venv/bin/activate  (Linux/Mac)"
 	@echo "  venv\\Scripts\\activate     (Windows)"
 
@@ -61,7 +66,5 @@ clean:
 clean-all:
 	@echo "Cleaning everything including venv..."
 	rm -rf venv
-	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-	find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
-	find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
+	find . -type d \( -name "__pycache__" -o -name "*.egg-info" -o -name ".pytest_cache" \) -prune -exec rm -rf {} + 2>/dev/null || true
 	@echo "Clean complete!"
