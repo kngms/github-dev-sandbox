@@ -12,9 +12,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Sanity check
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
         run: |
-          echo "CI pipeline active"
-          echo "Repository is correctly wired for GitHub Actions"
-
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+      - name: Run tests
+        run: pytest tests/ -v
